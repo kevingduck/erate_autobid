@@ -1,0 +1,127 @@
+{
+  "documentStructure": {
+    "title": "E-rate Equipment Proposal",
+    "company": {
+      "name": "Converged Networks, LLC",
+      "address": "Texas & Florida",
+      "phone": "",
+      "email": "kevin@convergednetworks.com",
+      "website": "convergednetworks.com"
+    },
+    "sections": [
+      {
+        "name": "cover_page",
+        "title": "Cover Page",
+        "fields": [
+          "company_logo",
+          "proposal_title",
+          "applicant_name",
+          "application_number",
+          "date_prepared"
+        ]
+      },
+      {
+        "name": "executive_summary",
+        "title": "Executive Summary",
+        "content": "Overview of proposed solution and why Converged Networks is the best choice"
+      },
+      {
+        "name": "company_overview",
+        "title": "About Converged Networks",
+        "content": "Company qualifications, certifications, and experience with E-rate programs"
+      },
+      {
+        "name": "requirements",
+        "title": "Requirements Summary",
+        "content": "List of equipment and services requested in the RFP"
+      },
+      {
+        "name": "proposed_solution",
+        "title": "Proposed Solution",
+        "subsections": [
+          {
+            "name": "ruckus_primary",
+            "title": "Primary Recommendation - Ruckus Networks",
+            "includes": ["equipment_list", "specifications", "pricing_table"]
+          },
+          {
+            "name": "extreme_alternative",
+            "title": "Alternative Option - Extreme Networks",
+            "includes": ["equipment_list", "specifications", "pricing_table"]
+          },
+          {
+            "name": "ubiquiti_alternative",
+            "title": "Alternative Option - Ubiquiti Networks",
+            "includes": ["equipment_list", "specifications", "pricing_table"]
+          }
+        ]
+      },
+      {
+        "name": "technical_specifications",
+        "title": "Technical Specifications",
+        "content": "Detailed specifications for each recommended product"
+      },
+      {
+        "name": "equivalency_statement",
+        "title": "Equivalency Statement",
+        "content": "Documentation showing how alternative products meet or exceed specified requirements"
+      },
+      {
+        "name": "implementation_plan",
+        "title": "Implementation Plan",
+        "content": "Timeline and approach for installation and configuration"
+      },
+      {
+        "name": "support_maintenance",
+        "title": "Support & Maintenance",
+        "content": "Warranty, support services, and maintenance options"
+      },
+      {
+        "name": "pricing_summary",
+        "title": "Pricing Summary",
+        "content": "Total cost breakdown and E-rate eligible amounts"
+      },
+      {
+        "name": "terms_conditions",
+        "title": "Terms & Conditions",
+        "content": "Standard terms, payment schedule, and conditions"
+      },
+      {
+        "name": "appendix",
+        "title": "Appendix",
+        "content": "Manufacturer spec sheets, certifications, references"
+      }
+    ]
+  },
+  "formatting": {
+    "fonts": {
+      "heading1": {"size": 18, "bold": true, "color": "#1a1a1a"},
+      "heading2": {"size": 14, "bold": true, "color": "#333333"},
+      "body": {"size": 11, "bold": false, "color": "#000000"},
+      "table_header": {"size": 11, "bold": true, "color": "#ffffff", "background": "#4472C4"}
+    },
+    "margins": {
+      "top": 1,
+      "bottom": 1,
+      "left": 1,
+      "right": 1
+    },
+    "spacing": {
+      "after_heading1": 12,
+      "after_heading2": 6,
+      "after_paragraph": 6
+    }
+  },
+  "boilerplate": {
+    "company_overview": "Converged Networks, LLC is a leading provider of enterprise networking solutions specializing in Ruckus, Extreme, and Ubiquiti equipment. With extensive experience in E-rate funded projects, we understand the unique requirements and compliance needs of educational institutions.",
+    "why_choose_us": [
+      "Authorized partner for Ruckus, Extreme, and Ubiquiti Networks",
+      "Extensive experience with E-rate compliance and documentation",
+      "Professional installation and ongoing support services",
+      "Competitive pricing and flexible payment options",
+      "Dedicated project management and technical support"
+    ],
+    "warranty_support": "All equipment includes manufacturer warranty and our team provides ongoing technical support to ensure optimal performance of your network infrastructure.",
+    "terms": "Pricing valid for 30 days. Payment terms net 30. Installation scheduled upon receipt of E-rate funding commitment letter."
+  }
+}

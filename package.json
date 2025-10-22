@@ -1,0 +1,29 @@
+{
+  "name": "erate-autobid",
+  "version": "1.0.0",
+  "description": "E-rate RFP automation system using n8n for Converged Networks",
+  "main": "index.js",
+  "scripts": {
+    "start": "docker-compose up -d",
+    "stop": "docker-compose down",
+    "restart": "docker-compose restart",
+    "logs": "docker-compose logs -f n8n",
+    "backup": "tar -czf backup-$(date +%Y%m%d-%H%M%S).tar.gz workflows/ templates/ pdfs/",
+    "setup": "mkdir -p n8n-data workflows credentials pdfs templates && cp .env.example .env"
+  },
+  "keywords": [
+    "erate",
+    "rfp",
+    "automation",
+    "n8n",
+    "workflow",
+    "converged-networks"
+  ],
+  "author": "Kevin Duck <kevin@convergednetworks.com>",
+  "license": "UNLICENSED",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kevingduck/erate_autobid.git"
+  }
+}

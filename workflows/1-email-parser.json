@@ -1,0 +1,189 @@
+{
+  "name": "1. E-rate Email Parser",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 8 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Daily Trigger - 8:30 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "id": "daily-trigger"
+    },
+    {
+      "parameters": {
+        "mailbox": "INBOX",
+        "postProcessAction": "read",
+        "options": {
+          "allowUnauthorizedCerts": false,
+          "forceReconnect": 300
+        },
+        "filters": {
+          "sender": [
+            {
+              "value": "no-reply@erateprofitworks.com"
+            }
+          ],
+          "subject": [
+            {
+              "value": "Daily Sales Leads for Converged Networks"
+            }
+          ]
+        }
+      },
+      "name": "Email Trigger (IMAP)",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "id": "email-trigger",
+      "credentials": {
+        "imap": {
+          "id": "1",
+          "name": "Gmail IMAP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse the HTML email to extract 470 application links\nconst htmlContent = $input.item.json.html || $input.item.json.text;\n\n// Extract all 470 application numbers and create structured data\nconst regex = /(\\d{9})\\s+([^\\n]+?)\\s+(FL|TX)\\s+(\\d+)\\s+Basic Maintenance/g;\nconst leads = [];\nlet match;\n\nwhile ((match = regex.exec(htmlContent)) !== null) {\n  const appNumber = match[1];\n  const applicantName = match[2].trim();\n  const state = match[3];\n  const sites = match[4];\n  \n  // Extract product information for this application\n  const productRegex = new RegExp(\n    appNumber + '[\\\\s\\\\S]*?(?=(\\\\d{9}|$))',\n    'g'\n  );\n  const appSection = htmlContent.match(productRegex);\n  let products = [];\n  \n  if (appSection && appSection[0]) {\n    const productMatches = appSection[0].matchAll(\n      /(Wireless Access Points|Switches|Routers|Wireless Controllers)[^\\n]*?-\\s*([^(]+)\\((\\d+)\\)/g\n    );\n    \n    for (const pm of productMatches) {\n      products.push({\n        type: pm[1].trim(),\n        manufacturer: pm[2].trim(),\n        quantity: parseInt(pm[3])\n      });\n    }\n  }\n  \n  leads.push({\n    applicationNumber: appNumber,\n    applicantName: applicantName,\n    state: state,\n    sites: parseInt(sites),\n    products: products,\n    url: `https://www.usac.org/e-rate/applicant-process/before-you-begin/learn-about-form-470/`,\n    // The actual URL would be constructed from the application number\n    applicationUrl: `https://data.usac.org/publicreports/Forms/Form470Rfp/Index?FundingYear=2025&ApplicationNumber=${appNumber}`,\n    datePosted: new Date().toISOString().split('T')[0],\n    status: 'new'\n  });\n}\n\n// Return each lead as a separate item for processing\nreturn leads.map(lead => ({ json: lead }));"
+      },
+      "name": "Parse Email HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300],
+      "id": "parse-html"
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "tableId": "daily_leads",
+        "columns": {
+          "mappings": [
+            {
+              "column": "application_number",
+              "value": "={{ $json.applicationNumber }}"
+            },
+            {
+              "column": "applicant_name",
+              "value": "={{ $json.applicantName }}"
+            },
+            {
+              "column": "state",
+              "value": "={{ $json.state }}"
+            },
+            {
+              "column": "sites",
+              "value": "={{ $json.sites }}"
+            },
+            {
+              "column": "products",
+              "value": "={{ JSON.stringify($json.products) }}"
+            },
+            {
+              "column": "application_url",
+              "value": "={{ $json.applicationUrl }}"
+            },
+            {
+              "column": "date_posted",
+              "value": "={{ $json.datePosted }}"
+            },
+            {
+              "column": "status",
+              "value": "={{ $json.status }}"
+            },
+            {
+              "column": "created_at",
+              "value": "={{ $now.toISO() }}"
+            }
+          ]
+        }
+      },
+      "name": "Save to Database",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "id": "save-db",
+      "credentials": {
+        "postgres": {
+          "id": "2",
+          "name": "PostgreSQL"
+        }
+      },
+      "notes": "Optional: Save leads to database for tracking"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "process-application",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "name": "Trigger Next Workflow",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "id": "webhook-trigger",
+      "webhookId": "process-application"
+    }
+  ],
+  "connections": {
+    "Daily Trigger - 8:30 AM": {
+      "main": [
+        [
+          {
+            "node": "Email Trigger (IMAP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Trigger (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "Parse Email HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Email HTML": {
+      "main": [
+        [
+          {
+            "node": "Save to Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Database": {
+      "main": [
+        [
+          {
+            "node": "Trigger Next Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

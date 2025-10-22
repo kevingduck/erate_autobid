@@ -1,0 +1,378 @@
+{
+  "name": "0. Main Orchestrator - E-rate Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "30 8 * * 1-5"
+            }
+          ]
+        }
+      },
+      "name": "Daily Trigger - Weekdays 8:30 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "id": "daily-trigger",
+      "notes": "Runs Monday-Friday at 8:30 AM"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:5678/webhook/email-check",
+        "authentication": "none",
+        "options": {}
+      },
+      "name": "Check for New E-rate Emails",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [450, 300],
+      "id": "check-emails",
+      "notes": "Triggers workflow 1 - Email Parser"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.leadsFound }}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "name": "Any New Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "id": "check-leads"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process each lead sequentially\nconst leads = $input.item.json.leads || [];\n\nif (leads.length === 0) {\n  return [];\n}\n\nreturn leads.map(lead => ({\n  json: {\n    ...lead,\n    stage: 'pending',\n    startedAt: new Date().toISOString()\n  }\n}));"
+      },
+      "name": "Prepare Leads for Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 200],
+      "id": "prepare-leads"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/scrape-rfp",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Scrape Application & Download PDFs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1050, 200],
+      "id": "scrape-rfp",
+      "notes": "Triggers workflow 2 - RFP Scraper"
+    },
+    {
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "name": "Wait for PDF Processing",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1250, 200],
+      "id": "wait-pdf"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/analyze-pdf",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "name": "Analyze PDFs & Extract Requirements",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1450, 200],
+      "id": "analyze-pdf",
+      "notes": "Triggers workflow 3 - PDF Analyzer"
+    },
+    {
+      "parameters": {
+        "amount": 10,
+        "unit": "seconds"
+      },
+      "name": "Wait for Analysis",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1650, 200],
+      "id": "wait-analysis"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/request-pricing",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "name": "Request Manual Pricing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1850, 200],
+      "id": "request-pricing",
+      "notes": "Triggers workflow 3b - Manual Pricing Request. Process pauses here until you resume."
+    },
+    {
+      "parameters": {
+        "jsCode": "// This workflow ends here and waits for manual pricing input\n// To resume, use the webhook: /webhook/resume-from-pricing\n\nreturn [{\n  json: {\n    status: 'paused_for_pricing',\n    message: 'Automation paused. Waiting for manual pricing input.',\n    applicationNumber: $input.item.json.applicationNumber,\n    nextStep: 'Fill in pricing sheet and call resume webhook'\n  }\n}];"
+      },
+      "name": "Pause for Manual Pricing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2050, 200],
+      "id": "pause-workflow",
+      "notes": "Workflow pauses here. Resume via workflow 3c."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate results from all leads\nconst items = $input.all();\nconst successful = items.filter(i => i.json.success);\nconst failed = items.filter(i => !i.json.success);\n\nreturn [{\n  json: {\n    totalLeads: items.length,\n    successful: successful.length,\n    failed: failed.length,\n    results: items.map(i => ({\n      applicationNumber: i.json.applicationNumber,\n      applicantName: i.json.applicantName,\n      status: i.json.success ? 'completed' : 'failed',\n      documentUrl: i.json.documentUrl || null\n    })),\n    completedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2450, 200],
+      "id": "aggregate-results"
+    },
+    {
+      "parameters": {
+        "operation": "sendEmail",
+        "to": "kevin@convergednetworks.com",
+        "subject": "=E-rate Automation Daily Summary - {{ $json.successful }}/{{ $json.totalLeads }} Completed",
+        "message": "=Daily E-rate automation run completed.\\n\\nTotal Leads: {{ $json.totalLeads }}\\nSuccessful: {{ $json.successful }}\\nFailed: {{ $json.failed }}\\n\\nCompleted at: {{ $json.completedAt }}\\n\\nCheck n8n for details on each proposal.",
+        "options": {}
+      },
+      "name": "Send Daily Summary Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [2650, 200],
+      "id": "send-summary",
+      "credentials": {
+        "smtp": {
+          "id": "5",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    message: 'No new E-rate leads found today.',\n    checkedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "No Leads Found",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 400],
+      "id": "no-leads"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "manual-trigger",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "name": "Manual Trigger Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 500],
+      "id": "manual-webhook",
+      "webhookId": "manual-trigger",
+      "notes": "Use this to manually trigger processing for a specific application"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Manual trigger input validation\nconst input = $input.item.json;\n\nif (!input.applicationNumber) {\n  throw new Error('applicationNumber is required');\n}\n\nreturn [{\n  json: {\n    ...input,\n    stage: 'manual',\n    startedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "Validate Manual Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 500],
+      "id": "validate-manual"
+    }
+  ],
+  "connections": {
+    "Daily Trigger - Weekdays 8:30 AM": {
+      "main": [
+        [
+          {
+            "node": "Check for New E-rate Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for New E-rate Emails": {
+      "main": [
+        [
+          {
+            "node": "Any New Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any New Leads?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Leads for Processing",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Leads Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Leads for Processing": {
+      "main": [
+        [
+          {
+            "node": "Scrape Application & Download PDFs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Application & Download PDFs": {
+      "main": [
+        [
+          {
+            "node": "Wait for PDF Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for PDF Processing": {
+      "main": [
+        [
+          {
+            "node": "Analyze PDFs & Extract Requirements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze PDFs & Extract Requirements": {
+      "main": [
+        [
+          {
+            "node": "Wait for Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Analysis": {
+      "main": [
+        [
+          {
+            "node": "Request Manual Pricing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Request Manual Pricing": {
+      "main": [
+        [
+          {
+            "node": "Pause for Manual Pricing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pause for Manual Pricing": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Results": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Summary Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Manual Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Manual Input": {
+      "main": [
+        [
+          {
+            "node": "Scrape Application & Download PDFs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": []
+}

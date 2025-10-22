@@ -1,0 +1,206 @@
+{
+  "name": "3. PDF Analyzer - Extract Requirements",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "analyze-pdf",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "name": "Webhook - Receive PDF Data",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "id": "webhook-pdf",
+      "webhookId": "analyze-pdf"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Split PDF files into individual items for processing\nconst pdfFiles = $input.item.json.pdfFiles;\nconst appData = $input.item.json;\n\nreturn pdfFiles.map(pdf => ({\n  json: {\n    ...appData,\n    currentPdf: pdf\n  }\n}));"
+      },
+      "name": "Split PDFs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "id": "split-pdfs"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileName": "={{ $json.currentPdf.filePath }}"
+      },
+      "name": "Read PDF File",
+      "type": "n8n-nodes-base.readFile",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "id": "read-pdf"
+    },
+    {
+      "parameters": {
+        "operation": "extractText",
+        "binaryData": true,
+        "options": {}
+      },
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.pdf",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "id": "extract-text",
+      "notes": "Uses built-in PDF node to extract text"
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "create",
+        "model": "gpt-4-turbo-preview",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an expert at analyzing E-rate RFP and Form 470 documents. Extract all equipment requirements including switches, wireless access points, routers, controllers, and any other networking equipment. Return a structured JSON object with the following format:\n{\n  \"requirements\": [\n    {\n      \"category\": \"switches\",\n      \"quantity\": 10,\n      \"specifications\": \"24-port PoE+ Gigabit switches\",\n      \"preferredManufacturer\": \"Ruckus or equivalent\",\n      \"requiredFeatures\": [\"PoE+\", \"Layer 3\", \"10G uplinks\"]\n    }\n  ],\n  \"budget\": \"$50,000\",\n  \"deadline\": \"2025-11-15\",\n  \"specialRequirements\": [],\n  \"contactInfo\": {}\n}"
+            },
+            {
+              "role": "user",
+              "content": "=Analyze this E-rate document and extract all equipment requirements:\n\n{{ $json.text }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.1
+        }
+      },
+      "name": "AI Analysis - Extract Requirements",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "id": "ai-analysis",
+      "credentials": {
+        "openAiApi": {
+          "id": "3",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI response and structure the data\nconst aiResponse = $input.item.json.message.content;\nlet requirements;\n\ntry {\n  // Extract JSON from markdown code blocks if present\n  const jsonMatch = aiResponse.match(/```(?:json)?\\s*([\\s\\S]*?)```/);\n  if (jsonMatch) {\n    requirements = JSON.parse(jsonMatch[1]);\n  } else {\n    requirements = JSON.parse(aiResponse);\n  }\n} catch (error) {\n  // Fallback if JSON parsing fails\n  requirements = {\n    requirements: [],\n    rawText: aiResponse,\n    parseError: error.message\n  };\n}\n\nreturn [{\n  json: {\n    applicationNumber: $input.item.json.applicationNumber,\n    applicantName: $input.item.json.applicantName,\n    state: $input.item.json.state,\n    pdfType: $input.item.json.currentPdf.type,\n    extractedRequirements: requirements,\n    processedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "Structure Requirements Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300],
+      "id": "structure-data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate all PDF analyses for this application\nconst items = $input.all();\nconst firstItem = items[0].json;\n\n// Combine requirements from all PDFs\nconst allRequirements = [];\nconst budgetInfo = [];\nconst deadlines = [];\n\nitems.forEach(item => {\n  if (item.json.extractedRequirements.requirements) {\n    allRequirements.push(...item.json.extractedRequirements.requirements);\n  }\n  if (item.json.extractedRequirements.budget) {\n    budgetInfo.push(item.json.extractedRequirements.budget);\n  }\n  if (item.json.extractedRequirements.deadline) {\n    deadlines.push(item.json.extractedRequirements.deadline);\n  }\n});\n\nreturn [{\n  json: {\n    applicationNumber: firstItem.applicationNumber,\n    applicantName: firstItem.applicantName,\n    state: firstItem.state,\n    requirements: allRequirements,\n    budget: budgetInfo[0] || null,\n    deadline: deadlines[0] || null,\n    totalPDFsAnalyzed: items.length,\n    readyForBOM: true\n  }\n}];"
+      },
+      "name": "Aggregate All PDFs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 300],
+      "id": "aggregate-pdfs"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/generate-bom",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "name": "Trigger BOM Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1650, 300],
+      "id": "trigger-bom"
+    }
+  ],
+  "connections": {
+    "Webhook - Receive PDF Data": {
+      "main": [
+        [
+          {
+            "node": "Split PDFs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split PDFs": {
+      "main": [
+        [
+          {
+            "node": "Read PDF File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read PDF File": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "AI Analysis - Extract Requirements",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Analysis - Extract Requirements": {
+      "main": [
+        [
+          {
+            "node": "Structure Requirements Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structure Requirements Data": {
+      "main": [
+        [
+          {
+            "node": "Aggregate All PDFs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate All PDFs": {
+      "main": [
+        [
+          {
+            "node": "Trigger BOM Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

@@ -1,0 +1,205 @@
+{
+  "name": "5. Proposal Generator - Create Google Doc",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "create-proposal",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "name": "Webhook - Receive BOM Data",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "id": "webhook-proposal",
+      "webhookId": "create-proposal"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileName": "/data/templates/proposal-template.json"
+      },
+      "name": "Load Proposal Template",
+      "type": "n8n-nodes-base.readFile",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "id": "load-template"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate proposal document content\nconst bomData = $input.first().json;\nconst template = JSON.parse($input.item.json.data.toString());\n\n// Build document sections\nconst sections = [];\n\n// Title Section\nsections.push({\n  type: 'title',\n  content: `E-rate Equipment Proposal\\n${bomData.applicantName}\\nApplication #${bomData.applicationNumber}`\n});\n\n// Executive Summary\nsections.push({\n  type: 'heading1',\n  content: 'Executive Summary'\n});\n\nsections.push({\n  type: 'paragraph',\n  content: `Converged Networks is pleased to submit this proposal for ${bomData.applicantName}'s E-rate funding application #${bomData.applicationNumber}. We specialize in providing Ruckus, Extreme, and Ubiquiti networking solutions for educational institutions.`\n});\n\n// Requirements Summary\nsections.push({\n  type: 'heading1',\n  content: 'Requirements Summary'\n});\n\nif (bomData.requirements && bomData.requirements.length > 0) {\n  bomData.requirements.forEach(req => {\n    sections.push({\n      type: 'paragraph',\n      content: `• ${req.specifications} - Quantity: ${req.quantity}`\n    });\n  });\n}\n\n// Primary BOM - Ruckus\nsections.push({\n  type: 'heading1',\n  content: 'Primary Recommendation - Ruckus Networks'\n});\n\nsections.push({\n  type: 'paragraph',\n  content: 'We recommend Ruckus Networks equipment for superior performance, reliability, and E-rate compliance.'\n});\n\nsections.push({\n  type: 'table',\n  headers: ['Item', 'Model', 'Part Number', 'Qty', 'Unit Price', 'Total'],\n  rows: bomData.bom.primary.map(item => ([\n    item.description,\n    item.model,\n    item.partNumber,\n    item.quantity.toString(),\n    item.unitPrice,\n    'TBD' // Will be filled in with actual pricing\n  ]))\n});\n\n// Alternative - Extreme Networks\nif (bomData.bom.alternative_extreme && bomData.bom.alternative_extreme.length > 0) {\n  sections.push({\n    type: 'heading1',\n    content: 'Alternative Option - Extreme Networks'\n  });\n  \n  sections.push({\n    type: 'table',\n    headers: ['Item', 'Model', 'Part Number', 'Qty', 'Unit Price', 'Total'],\n    rows: bomData.bom.alternative_extreme.map(item => ([\n      item.description,\n      item.model,\n      item.partNumber,\n      item.quantity.toString(),\n      item.unitPrice,\n      'TBD'\n    ]))\n  });\n}\n\n// Alternative - Ubiquiti\nif (bomData.bom.alternative_ubiquiti && bomData.bom.alternative_ubiquiti.length > 0) {\n  sections.push({\n    type: 'heading1',\n    content: 'Alternative Option - Ubiquiti Networks'\n  });\n  \n  sections.push({\n    type: 'table',\n    headers: ['Item', 'Model', 'Part Number', 'Qty', 'Unit Price', 'Total'],\n    rows: bomData.bom.alternative_ubiquiti.map(item => ([\n      item.description,\n      item.model,\n      item.partNumber,\n      item.quantity.toString(),\n      item.unitPrice,\n      'TBD'\n    ]))\n  });\n}\n\n// AI Recommendations\nif (bomData.aiRecommendations) {\n  sections.push({\n    type: 'heading1',\n    content: 'Technical Recommendations'\n  });\n  \n  sections.push({\n    type: 'paragraph',\n    content: JSON.stringify(bomData.aiRecommendations, null, 2)\n  });\n}\n\n// Budget Information\nif (bomData.budget) {\n  sections.push({\n    type: 'heading1',\n    content: 'Budget Information'\n  });\n  \n  sections.push({\n    type: 'paragraph',\n    content: `Estimated Category 2 Budget: $${bomData.budget}`\n  });\n}\n\n// Timeline\nif (bomData.deadline) {\n  sections.push({\n    type: 'heading1',\n    content: 'Timeline'\n  });\n  \n  sections.push({\n    type: 'paragraph',\n    content: `Contract Deadline: ${bomData.deadline}`\n  });\n}\n\n// Contact Information\nsections.push({\n  type: 'heading1',\n  content: 'Contact Information'\n});\n\nsections.push({\n  type: 'paragraph',\n  content: `Converged Networks\\nKevin Duck\\nEmail: kevin@convergednetworks.com`\n});\n\nreturn [{\n  json: {\n    applicationNumber: bomData.applicationNumber,\n    applicantName: bomData.applicantName,\n    documentTitle: `E-rate Proposal - ${bomData.applicantName} - ${bomData.applicationNumber}`,\n    sections: sections,\n    bomData: bomData\n  }\n}];"
+      },
+      "name": "Build Document Structure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300],
+      "id": "build-doc"
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "operation": "create",
+        "title": "={{ $json.documentTitle }}",
+        "folderId": {
+          "__rl": true,
+          "value": "root",
+          "mode": "list"
+        }
+      },
+      "name": "Create Google Doc",
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "id": "create-doc",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "4",
+          "name": "Google Docs OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format content for Google Docs API\nconst sections = $input.item.json.sections;\nconst documentId = $input.item.json.documentId;\n\n// Convert sections to Google Docs requests\nconst requests = [];\nlet index = 1; // Start after title\n\nsections.forEach(section => {\n  switch (section.type) {\n    case 'heading1':\n      requests.push({\n        insertText: {\n          location: { index: index },\n          text: section.content + '\\n\\n'\n        }\n      });\n      requests.push({\n        updateParagraphStyle: {\n          range: {\n            startIndex: index,\n            endIndex: index + section.content.length\n          },\n          paragraphStyle: {\n            namedStyleType: 'HEADING_1'\n          },\n          fields: 'namedStyleType'\n        }\n      });\n      index += section.content.length + 2;\n      break;\n      \n    case 'paragraph':\n      requests.push({\n        insertText: {\n          location: { index: index },\n          text: section.content + '\\n\\n'\n        }\n      });\n      index += section.content.length + 2;\n      break;\n      \n    case 'table':\n      // Tables are complex in Google Docs API\n      // For now, we'll format as text\n      let tableText = section.headers.join('\\t') + '\\n';\n      section.rows.forEach(row => {\n        tableText += row.join('\\t') + '\\n';\n      });\n      requests.push({\n        insertText: {\n          location: { index: index },\n          text: tableText + '\\n'\n        }\n      });\n      index += tableText.length + 1;\n      break;\n  }\n});\n\nreturn [{\n  json: {\n    documentId: documentId,\n    requests: requests,\n    applicationNumber: $input.item.json.applicationNumber,\n    bomData: $input.item.json.bomData\n  }\n}];"
+      },
+      "name": "Format for Google Docs API",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 300],
+      "id": "format-api"
+    },
+    {
+      "parameters": {
+        "resource": "document",
+        "operation": "update",
+        "documentId": "={{ $json.documentId }}",
+        "actionsUi": {\n          "actionFields": [\n            {\n              "action": "replaceText\",\n              \"replaceText\": \"Proposal content will be inserted here\"\n            }\n          ]\n        }\n      },
+      "name": "Update Google Doc Content",
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 1,
+      "position": [1250, 300],
+      "id": "update-doc",
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "4",
+          "name": "Google Docs OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Final output with document link and summary\nconst documentId = $input.item.json.documentId;\nconst bomData = $input.item.json.bomData;\n\nreturn [{\n  json: {\n    success: true,\n    applicationNumber: bomData.applicationNumber,\n    applicantName: bomData.applicantName,\n    documentId: documentId,\n    documentUrl: `https://docs.google.com/document/d/${documentId}/edit`,\n    proposalSummary: {\n      primaryManufacturer: 'Ruckus',\n      itemCount: bomData.bom.primary.length,\n      budget: bomData.budget,\n      deadline: bomData.deadline\n    },\n    message: 'Proposal document created successfully. You can now edit pricing and submit.'\n  }\n}];"
+      },
+      "name": "Generate Final Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 300],
+      "id": "final-output"
+    },
+    {
+      "parameters": {
+        "operation": "sendEmail",
+        "to": "kevin@convergednetworks.com",
+        "subject": "=New E-rate Proposal Ready: {{ $json.applicantName }}",
+        "message": "=A new E-rate proposal has been generated for {{ $json.applicantName }} (Application #{{ $json.applicationNumber }})\\n\\nDocument Link: {{ $json.documentUrl }}\\n\\nBudget: ${{ $json.proposalSummary.budget }}\\nDeadline: {{ $json.proposalSummary.deadline }}\\n\\nPlease review and add final pricing before submitting.",
+        "options": {}
+      },
+      "name": "Send Notification Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1650, 300],
+      "id": "send-email",
+      "credentials": {
+        "smtp": {
+          "id": "5",
+          "name": "SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook - Receive BOM Data": {
+      "main": [
+        [
+          {
+            "node": "Load Proposal Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Proposal Template": {
+      "main": [
+        [
+          {
+            "node": "Build Document Structure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Document Structure": {
+      "main": [
+        [
+          {
+            "node": "Create Google Doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Google Doc": {
+      "main": [
+        [
+          {
+            "node": "Format for Google Docs API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format for Google Docs API": {
+      "main": [
+        [
+          {
+            "node": "Update Google Doc Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Google Doc Content": {
+      "main": [
+        [
+          {
+            "node": "Generate Final Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Final Output": {
+      "main": [
+        [
+          {
+            "node": "Send Notification Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

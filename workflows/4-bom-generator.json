@@ -1,0 +1,161 @@
+{
+  "name": "4. BOM Generator - Product Mapping",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-bom",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "name": "Webhook - Receive Requirements",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "id": "webhook-bom",
+      "webhookId": "generate-bom"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "fileName": "/data/product-catalog.json"
+      },
+      "name": "Load Product Catalog",
+      "type": "n8n-nodes-base.readFile",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "id": "load-catalog"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Match requirements to products from catalog\nconst requirements = $input.first().json.requirements;\nconst catalog = JSON.parse($input.item.json.data.toString());\nconst preferredManufacturer = 'ruckus'; // Can be made dynamic\n\nconst bom = {\n  primary: [],\n  alternative_ruckus: [],\n  alternative_extreme: [],\n  alternative_ubiquiti: []\n};\n\nfunction findBestMatch(requirement, manufacturer) {\n  const category = requirement.category.toLowerCase();\n  const products = catalog.manufacturers[manufacturer]?.categories[category] || [];\n  \n  if (products.length === 0) return null;\n  \n  // Simple matching - in production, use more sophisticated logic\n  // based on specs, quantity, and requirements\n  const match = products.find(p => {\n    if (!p.erate_eligible) return false;\n    \n    // Check if specs match requirement specifications\n    const reqSpecs = requirement.specifications.toLowerCase();\n    const prodDesc = p.description.toLowerCase();\n    \n    // Basic matching on key terms\n    if (reqSpecs.includes('poe') && !prodDesc.includes('poe')) return false;\n    if (reqSpecs.includes('24-port') && p.specs.ports !== 24) return false;\n    if (reqSpecs.includes('48-port') && p.specs.ports !== 48) return false;\n    \n    return true;\n  });\n  \n  return match || products[0]; // Fallback to first product\n}\n\n// Generate BOM for each requirement\nrequirements.forEach(req => {\n  // Primary recommendation (Ruckus)\n  const ruckusProduct = findBestMatch(req, 'ruckus');\n  if (ruckusProduct) {\n    bom.primary.push({\n      requirement: req.specifications,\n      quantity: req.quantity,\n      manufacturer: 'Ruckus',\n      model: ruckusProduct.model,\n      description: ruckusProduct.description,\n      partNumber: ruckusProduct.part_number,\n      unitPrice: ruckusProduct.price_range,\n      specs: ruckusProduct.specs\n    });\n  }\n  \n  // Alternative: Extreme\n  const extremeProduct = findBestMatch(req, 'extreme');\n  if (extremeProduct) {\n    bom.alternative_extreme.push({\n      requirement: req.specifications,\n      quantity: req.quantity,\n      manufacturer: 'Extreme',\n      model: extremeProduct.model,\n      description: extremeProduct.description,\n      partNumber: extremeProduct.part_number,\n      unitPrice: extremeProduct.price_range,\n      specs: extremeProduct.specs\n    });\n  }\n  \n  // Alternative: Ubiquiti\n  const ubiquitiProduct = findBestMatch(req, 'ubiquiti');\n  if (ubiquitiProduct) {\n    bom.alternative_ubiquiti.push({\n      requirement: req.specifications,\n      quantity: req.quantity,\n      manufacturer: 'Ubiquiti',\n      model: ubiquitiProduct.model,\n      description: ubiquitiProduct.description,\n      partNumber: ubiquitiProduct.part_number,\n      unitPrice: ubiquitiProduct.price_range,\n      specs: ubiquitiProduct.specs\n    });\n  }\n});\n\nreturn [{\n  json: {\n    applicationNumber: $input.first().json.applicationNumber,\n    applicantName: $input.first().json.applicantName,\n    state: $input.first().json.state,\n    requirements: requirements,\n    bom: bom,\n    generatedAt: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "Generate BOM",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300],
+      "id": "generate-bom"
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "create",
+        "model": "gpt-4-turbo-preview",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a network equipment expert. Review this bill of materials and provide:\n1. Equivalency recommendations\n2. Missing items that might be needed (cables, licenses, installation)\n3. Compatibility notes\n4. Cost optimization suggestions\n\nReturn structured JSON with your analysis."
+            },
+            {
+              "role": "user",
+              "content": "=Review this BOM:\n\n{{ JSON.stringify($json.bom, null, 2) }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.3
+        }
+      },
+      "name": "AI - Validate BOM",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [850, 300],
+      "id": "validate-bom",
+      "credentials": {
+        "openAiApi": {
+          "id": "3",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse AI recommendations and add to BOM\nconst aiResponse = $input.item.json.message.content;\nlet recommendations;\n\ntry {\n  const jsonMatch = aiResponse.match(/```(?:json)?\\s*([\\s\\S]*?)```/);\n  if (jsonMatch) {\n    recommendations = JSON.parse(jsonMatch[1]);\n  } else {\n    recommendations = JSON.parse(aiResponse);\n  }\n} catch (error) {\n  recommendations = {\n    notes: aiResponse\n  };\n}\n\nreturn [{\n  json: {\n    ...$input.item.json,\n    aiRecommendations: recommendations,\n    readyForProposal: true\n  }\n}];"
+      },
+      "name": "Add AI Recommendations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1050, 300],
+      "id": "add-recommendations"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/create-proposal",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "name": "Trigger Proposal Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 300],
+      "id": "trigger-proposal"
+    }
+  ],
+  "connections": {
+    "Webhook - Receive Requirements": {
+      "main": [
+        [
+          {
+            "node": "Load Product Catalog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Product Catalog": {
+      "main": [
+        [
+          {
+            "node": "Generate BOM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate BOM": {
+      "main": [
+        [
+          {
+            "node": "AI - Validate BOM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI - Validate BOM": {
+      "main": [
+        [
+          {
+            "node": "Add AI Recommendations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add AI Recommendations": {
+      "main": [
+        [
+          {
+            "node": "Trigger Proposal Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

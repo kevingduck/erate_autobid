@@ -1,0 +1,177 @@
+{
+  "name": "2. RFP/470 Form Scraper",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "scrape-rfp",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "name": "Webhook - Receive Application Data",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "id": "webhook-receive",
+      "webhookId": "scrape-rfp"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.applicationUrl }}",
+        "authentication": "none",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "followRedirects": true,
+              "maxRedirects": 5
+            }
+          }
+        }
+      },
+      "name": "Load Application Page",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [450, 300],
+      "id": "load-page"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract PDF links and data from ErateProfitWorks application page\nconst htmlContent = $input.item.json.data;\nconst applicationData = $input.item.json;\n\n// Extract 470 Form PDF - Look specifically in the 470 Application # section\nconst form470Regex = /470 Application #[\\s\\S]*?href=\"(http:\\/\\/publicdata\\.usac\\.org\\/EPC\\/Prd\\/Form470\\/[^\"]+\\.pdf)\"/i;\nconst form470Match = form470Regex.exec(htmlContent);\n\n// Extract RFP Document(s) - Be very specific to avoid grabbing funding history PDFs\n// Look for the RFP Document(s) section and stop before the next major section\nconst rfpRegex = /<div class=\"section full\">\\s*<div class=\"title\">RFP Document\\(s\\)<\\/div>\\s*<div class=\"content\">\\s*<table>\\s*<thead>[\\s\\S]*?<\\/thead>\\s*<tbody>([\\s\\S]*?)<\\/tbody>\\s*<\\/table>\\s*<\\/div>\\s*<\\/div>/i;\nconst rfpSectionMatch = htmlContent.match(rfpRegex);\nconst rfpLinks = [];\n\nif (rfpSectionMatch) {\n  const rfpLinkRegex = /href=\"([^\"]+\\.pdf)\"/gi;\n  let match;\n  while ((match = rfpLinkRegex.exec(rfpSectionMatch[1])) !== null) {\n    // Only add links that look like RFP documents, not funding history\n    const url = match[1];\n    if (!url.includes('Form471') && !url.includes('Form470/2')) {\n      rfpLinks.push(url);\n    }\n  }\n}\n\n// Extract equipment requirements from Category 2 Details table\nconst equipmentRegex = /<tbody>([\\s\\S]*?)<\\/tbody>/gi;\nconst equipmentMatches = htmlContent.matchAll(equipmentRegex);\nconst equipment = [];\n\nfor (const tableMatch of equipmentMatches) {\n  const rowRegex = /<tr>\\s*<td>([^<]+)<\\/td>\\s*<td>([^<]+)<\\/td>\\s*<td>(\\d+)<\\/td>/gi;\n  let rowMatch;\n  \n  while ((rowMatch = rowRegex.exec(tableMatch[1])) !== null) {\n    equipment.push({\n      function: rowMatch[1].trim(),\n      manufacturer: rowMatch[2].trim(),\n      quantity: parseInt(rowMatch[3])\n    });\n  }\n}\n\n// Extract contact info\nconst emailRegex = /mailto:([^?\"]+)/gi;\nconst phoneRegex = /bt-phone[\\s\\S]*?>([^<]+)</gi;\nconst emails = [];\nconst phones = [];\n\nlet emailMatch;\nwhile ((emailMatch = emailRegex.exec(htmlContent)) !== null) {\n  if (!emails.includes(emailMatch[1])) {\n    emails.push(emailMatch[1]);\n  }\n}\n\nlet phoneMatch;\nwhile ((phoneMatch = phoneRegex.exec(htmlContent)) !== null) {\n  const phone = phoneMatch[1].trim();\n  if (phone !== '111-111-1111' && !phones.includes(phone)) {\n    phones.push(phone);\n  }\n}\n\n// Extract budget\nconst budgetRegex = /class=\"dollar\"[^>]*>\\$([^<]+)</i;\nconst budgetMatch = htmlContent.match(budgetRegex);\nconst budget = budgetMatch ? budgetMatch[1].trim() : null;\n\n// Extract allowable contract date\nconst contractDateRegex = /Allowable Contract Date[\\s\\S]*?class=\"data\"[^>]*>([^<]+)</i;\nconst contractDateMatch = htmlContent.match(contractDateRegex);\nconst contractDate = contractDateMatch ? contractDateMatch[1].trim() : null;\n\n// Compile all PDFs to download\nconst pdfs = [];\n\nif (form470Match) {\n  pdfs.push({\n    applicationNumber: applicationData.applicationNumber,\n    pdfUrl: form470Match[1],\n    fileName: `${applicationData.applicationNumber}_470_form.pdf`,\n    type: '470'\n  });\n}\n\nrfpLinks.forEach((url, index) => {\n  pdfs.push({\n    applicationNumber: applicationData.applicationNumber,\n    pdfUrl: url,\n    fileName: `${applicationData.applicationNumber}_rfp_${index + 1}.pdf`,\n    type: 'RFP'\n  });\n});\n\n// Add extracted structured data to first item\nif (pdfs.length > 0) {\n  pdfs[0].structuredData = {\n    equipment: equipment,\n    contacts: {\n      emails: emails,\n      phones: phones\n    },\n    budget: budget,\n    contractDate: contractDate,\n    applicantName: applicationData.applicantName,\n    state: applicationData.state\n  };\n}\n\nreturn pdfs.map(pdf => ({ json: pdf }));"
+      },
+      "name": "Extract PDF Links & Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300],
+      "id": "extract-pdfs"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.pdfUrl }}",
+        "authentication": "none",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "name": "Download PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [850, 300],
+      "id": "download-pdf"
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=/data/pdfs/{{ $json.fileName }}",
+        "data": "={{ $binary.data }}"
+      },
+      "name": "Save PDF to Disk",
+      "type": "n8n-nodes-base.writeFile",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "id": "save-pdf"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare data for PDF analysis workflow\nconst items = $input.all();\n\nreturn [{\n  json: {\n    applicationNumber: items[0].json.applicationNumber,\n    applicantName: items[0].json.applicantName,\n    state: items[0].json.state,\n    products: items[0].json.products,\n    pdfFiles: items.map(item => ({\n      fileName: item.json.fileName,\n      filePath: `/data/pdfs/${item.json.fileName}`,\n      type: item.json.type\n    }))\n  }\n}];"
+      },
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300],
+      "id": "aggregate"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/analyze-pdf",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "name": "Trigger PDF Analysis",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1450, 300],
+      "id": "trigger-analysis"
+    }
+  ],
+  "connections": {
+    "Webhook - Receive Application Data": {
+      "main": [
+        [
+          {
+            "node": "Load Application Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Load Application Page": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Links": {
+      "main": [
+        [
+          {
+            "node": "Download PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download PDF": {
+      "main": [
+        [
+          {
+            "node": "Save PDF to Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save PDF to Disk": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Results": {
+      "main": [
+        [
+          {
+            "node": "Trigger PDF Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

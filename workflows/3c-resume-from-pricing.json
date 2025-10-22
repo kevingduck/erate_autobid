@@ -1,0 +1,237 @@
+{
+  "name": "3c. Resume from Pricing - Continue Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "resume-from-pricing",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "name": "Webhook - Resume Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "id": "webhook-resume",
+      "webhookId": "resume-from-pricing"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate input\nconst input = $input.item.json;\n\nif (!input.applicationNumber || !input.spreadsheetId) {\n  throw new Error('applicationNumber and spreadsheetId are required');\n}\n\nreturn [{ json: input }];"
+      },
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "id": "validate"
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "specifyById": "id",
+          "value": "={{ $json.spreadsheetId }}"
+        },
+        "sheetName": "Pricing Request",
+        "options": {
+          "range": "A:N"
+        }
+      },
+      "name": "Read Pricing from Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [650, 300],
+      "id": "read-sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "6",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse pricing data from Google Sheet\nconst rows = $input.item.json.values || [];\n\nif (rows.length < 2) {\n  throw new Error('No pricing data found in sheet');\n}\n\n// Skip header row\nconst headers = rows[0];\nconst dataRows = rows.slice(1);\n\n// Parse pricing for each manufacturer\nconst bomWithPricing = {\n  ruckus: [],\n  extreme: [],\n  ubiquiti: []\n};\n\nlet ruckusTotal = 0;\nlet extremeTotal = 0;\nlet ubiquitiTotal = 0;\n\ndataRows.forEach(row => {\n  if (!row[0]) return; // Skip empty rows\n  \n  const item = {\n    category: row[0],\n    quantity: parseInt(row[1]) || 0,\n    specifications: row[2],\n    requiredFeatures: row[3] ? row[3].split(',').map(f => f.trim()) : []\n  };\n  \n  // Ruckus\n  if (row[4]) { // Has Ruckus part number\n    const unitPrice = parseFloat(row[5]) || 0;\n    const total = item.quantity * unitPrice;\n    ruckusTotal += total;\n    \n    bomWithPricing.ruckus.push({\n      ...item,\n      partNumber: row[4],\n      unitPrice: unitPrice,\n      total: total\n    });\n  }\n  \n  // Extreme\n  if (row[7]) { // Has Extreme part number\n    const unitPrice = parseFloat(row[8]) || 0;\n    const total = item.quantity * unitPrice;\n    extremeTotal += total;\n    \n    bomWithPricing.extreme.push({\n      ...item,\n      partNumber: row[7],\n      unitPrice: unitPrice,\n      total: total\n    });\n  }\n  \n  // Ubiquiti\n  if (row[10]) { // Has Ubiquiti part number\n    const unitPrice = parseFloat(row[11]) || 0;\n    const total = item.quantity * unitPrice;\n    ubiquitiTotal += total;\n    \n    bomWithPricing.ubiquiti.push({\n      ...item,\n      partNumber: row[10],\n      unitPrice: unitPrice,\n      total: total\n    });\n  }\n});\n\nreturn [{\n  json: {\n    applicationNumber: $input.item.json.applicationNumber,\n    spreadsheetId: $input.item.json.spreadsheetId,\n    bomWithPricing: bomWithPricing,\n    totals: {\n      ruckus: ruckusTotal,\n      extreme: extremeTotal,\n      ubiquiti: ubiquitiTotal\n    },\n    pricingComplete: true\n  }\n}];"
+      },
+      "name": "Parse Pricing Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300],
+      "id": "parse-pricing"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.bomWithPricing.ruckus.length > 0 }}",
+              "operation": "isTrue"
+            }
+          ]
+        }
+      },
+      "name": "Pricing Data Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "id": "check-valid"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Format BOM data for proposal generation\nconst data = $input.item.json;\n\nreturn [{\n  json: {\n    applicationNumber: data.applicationNumber,\n    bomData: {\n      primary: data.bomWithPricing.ruckus,\n      alternative_extreme: data.bomWithPricing.extreme,\n      alternative_ubiquiti: data.bomWithPricing.ubiquiti,\n      totals: data.totals\n    },\n    readyForProposal: true,\n    pricingSource: 'manual',\n    spreadsheetId: data.spreadsheetId\n  }\n}];"
+      },
+      "name": "Format for Proposal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 200],
+      "id": "format-proposal"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:5678/webhook/create-proposal",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.bomData) }}",
+        "options": {}
+      },
+      "name": "Trigger Proposal Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1450, 200],
+      "id": "trigger-proposal"
+    },
+    {
+      "parameters": {
+        "operation": "sendEmail",
+        "to": "kevin@convergednetworks.com",
+        "subject": "=Proposal Generated Successfully - {{ $json.applicationNumber }}",
+        "message": "=The proposal has been generated with your pricing data.\\n\\nTotal Prices:\\n- Ruckus: ${{ $json.bomData.totals.ruckus }}\\n- Extreme: ${{ $json.bomData.totals.extreme }}\\n- Ubiquiti: ${{ $json.bomData.totals.ubiquiti }}\\n\\nCheck your Google Drive for the proposal document.",
+        "options": {}
+      },
+      "name": "Send Success Notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1650, 200],
+      "id": "send-success",
+      "credentials": {
+        "smtp": {
+          "id": "5",
+          "name": "SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "sendEmail",
+        "to": "kevin@convergednetworks.com",
+        "subject": "=ERROR: Invalid Pricing Data - {{ $json.applicationNumber }}",
+        "message": "=The pricing sheet appears to be empty or incomplete.\\n\\nPlease ensure at least Ruckus pricing is filled in before resuming the automation.\\n\\nSheet URL: https://docs.google.com/spreadsheets/d/{{ $json.spreadsheetId }}/edit",
+        "options": {}
+      },
+      "name": "Send Error Notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1250, 400],
+      "id": "send-error",
+      "credentials": {
+        "smtp": {
+          "id": "5",
+          "name": "SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook - Resume Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "Read Pricing from Google Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Pricing from Google Sheet": {
+      "main": [
+        [
+          {
+            "node": "Parse Pricing Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Pricing Data": {
+      "main": [
+        [
+          {
+            "node": "Pricing Data Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pricing Data Valid?": {
+      "main": [
+        [
+          {
+            "node": "Format for Proposal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format for Proposal": {
+      "main": [
+        [
+          {
+            "node": "Trigger Proposal Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Proposal Generation": {
+      "main": [
+        [
+          {
+            "node": "Send Success Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}

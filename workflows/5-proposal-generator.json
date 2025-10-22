@@ -74,7 +74,15 @@
         "resource": "document",
         "operation": "update",
         "documentId": "={{ $json.documentId }}",
-        "actionsUi": {\n          "actionFields": [\n            {\n              "action": "replaceText\",\n              \"replaceText\": \"Proposal content will be inserted here\"\n            }\n          ]\n        }\n      },
+        "actionsUi": {
+          "actionFields": [
+            {
+              "action": "replaceText",
+              "replaceText": "Proposal content will be inserted here"
+            }
+          ]
+        }
+      },
       "name": "Update Google Doc Content",
       "type": "n8n-nodes-base.googleDocs",
       "typeVersion": 1,

@@ -51,40 +51,40 @@
     },
     {
       "parameters": {
-        "resource": "chat",
-        "operation": "create",
-        "model": "gpt-4-turbo-preview",
-        "messages": {
-          "values": [
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
             {
-              "role": "system",
-              "content": "You are an expert at analyzing E-rate RFP and Form 470 documents. Extract all equipment requirements including switches, wireless access points, routers, controllers, and any other networking equipment. Return a structured JSON object with the following format:\n{\n  \"requirements\": [\n    {\n      \"category\": \"switches\",\n      \"quantity\": 10,\n      \"specifications\": \"24-port PoE+ Gigabit switches\",\n      \"preferredManufacturer\": \"Ruckus or equivalent\",\n      \"requiredFeatures\": [\"PoE+\", \"Layer 3\", \"10G uplinks\"]\n    }\n  ],\n  \"budget\": \"$50,000\",\n  \"deadline\": \"2025-11-15\",\n  \"specialRequirements\": [],\n  \"contactInfo\": {}\n}"
-            },
-            {
-              "role": "user",
-              "content": "=Analyze this E-rate document and extract all equipment requirements:\n\n{{ $json.text }}"
+              "name": "anthropic-version",
+              "value": "2023-06-01"
             }
           ]
         },
-        "options": {
-          "temperature": 0.1
-        }
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'claude-3-5-haiku-20241022',\n  max_tokens: 4096,\n  temperature: 0.1,\n  system: 'You are an expert at analyzing E-rate RFP and Form 470 documents. Extract all equipment requirements including switches, wireless access points, routers, controllers, and any other networking equipment. Return a structured JSON object with the following format:\\n{\\n  \"requirements\": [\\n    {\\n      \"category\": \"switches\",\\n      \"quantity\": 10,\\n      \"specifications\": \"24-port PoE+ Gigabit switches\",\\n      \"preferredManufacturer\": \"Ruckus or equivalent\",\\n      \"requiredFeatures\": [\"PoE+\", \"Layer 3\", \"10G uplinks\"]\\n    }\\n  ],\\n  \"budget\": \"$50,000\",\\n  \"deadline\": \"2025-11-15\",\\n  \"specialRequirements\": [],\\n  \"contactInfo\": {}\\n}',\n  messages: [{\n    role: 'user',\n    content: 'Analyze this E-rate document and extract all equipment requirements:\\n\\n' + $json.text\n  }]\n}) }}",
+        "options": {}
       },
-      "name": "AI Analysis - Extract Requirements",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1,
+      "name": "AI Analysis - Claude Haiku",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
       "position": [1050, 300],
       "id": "ai-analysis",
       "credentials": {
-        "openAiApi": {
+        "anthropicApi": {
           "id": "3",
-          "name": "OpenAI API"
+          "name": "Anthropic API"
         }
-      }
+      },
+      "notes": "Uses Claude 3.5 Haiku - fast and cost-effective"
     },
     {
       "parameters": {
-        "jsCode": "// Parse AI response and structure the data\nconst aiResponse = $input.item.json.message.content;\nlet requirements;\n\ntry {\n  // Extract JSON from markdown code blocks if present\n  const jsonMatch = aiResponse.match(/```(?:json)?\\s*([\\s\\S]*?)```/);\n  if (jsonMatch) {\n    requirements = JSON.parse(jsonMatch[1]);\n  } else {\n    requirements = JSON.parse(aiResponse);\n  }\n} catch (error) {\n  // Fallback if JSON parsing fails\n  requirements = {\n    requirements: [],\n    rawText: aiResponse,\n    parseError: error.message\n  };\n}\n\nreturn [{\n  json: {\n    applicationNumber: $input.item.json.applicationNumber,\n    applicantName: $input.item.json.applicantName,\n    state: $input.item.json.state,\n    pdfType: $input.item.json.currentPdf.type,\n    extractedRequirements: requirements,\n    processedAt: new Date().toISOString()\n  }\n}];"
+        "jsCode": "// Parse Claude API response and structure the data\nconst apiResponse = $input.item.json;\nconst aiResponse = apiResponse.content[0].text;\nlet requirements;\n\ntry {\n  // Extract JSON from markdown code blocks if present\n  const jsonMatch = aiResponse.match(/```(?:json)?\\s*([\\s\\S]*?)```/);\n  if (jsonMatch) {\n    requirements = JSON.parse(jsonMatch[1]);\n  } else {\n    requirements = JSON.parse(aiResponse);\n  }\n} catch (error) {\n  // Fallback if JSON parsing fails\n  requirements = {\n    requirements: [],\n    rawText: aiResponse,\n    parseError: error.message\n  };\n}\n\nreturn [{\n  json: {\n    applicationNumber: $input.item.json.applicationNumber,\n    applicantName: $input.item.json.applicantName,\n    state: $input.item.json.state,\n    pdfType: $input.item.json.currentPdf.type,\n    extractedRequirements: requirements,\n    processedAt: new Date().toISOString()\n  }\n}];"
       },
       "name": "Structure Requirements Data",
       "type": "n8n-nodes-base.code",

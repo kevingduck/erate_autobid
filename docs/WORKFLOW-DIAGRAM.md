@@ -43,7 +43,7 @@
 ┌────────────────────────────┐
 │ 3. PDF ANALYZER            │
 │ • Extract text from PDFs   │
-│ • AI analysis (GPT-4)      │
+│ • AI analysis (Haiku 3.5)  │
 │ • Parse requirements       │
 │ • Structure data           │
 └────────┬───────────────────┘
@@ -203,7 +203,7 @@
 **Actions:**
 1. Read each PDF
 2. Extract text
-3. Send to OpenAI GPT-4 with specialized prompt
+3. Send to Claude 3.5 Haiku with specialized prompt
 4. Parse AI response
 5. Structure requirements
 

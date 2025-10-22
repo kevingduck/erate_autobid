@@ -38,40 +38,40 @@
     },
     {
       "parameters": {
-        "resource": "chat",
-        "operation": "create",
-        "model": "gpt-4-turbo-preview",
-        "messages": {
-          "values": [
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "anthropicApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
             {
-              "role": "system",
-              "content": "You are a network equipment expert. Review this bill of materials and provide:\n1. Equivalency recommendations\n2. Missing items that might be needed (cables, licenses, installation)\n3. Compatibility notes\n4. Cost optimization suggestions\n\nReturn structured JSON with your analysis."
-            },
-            {
-              "role": "user",
-              "content": "=Review this BOM:\n\n{{ JSON.stringify($json.bom, null, 2) }}"
+              "name": "anthropic-version",
+              "value": "2023-06-01"
             }
           ]
         },
-        "options": {
-          "temperature": 0.3
-        }
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'claude-3-5-haiku-20241022',\n  max_tokens: 4096,\n  temperature: 0.3,\n  system: 'You are a network equipment expert. Review this bill of materials and provide:\\n1. Equivalency recommendations\\n2. Missing items that might be needed (cables, licenses, installation)\\n3. Compatibility notes\\n4. Cost optimization suggestions\\n\\nReturn structured JSON with your analysis.',\n  messages: [{\n    role: 'user',\n    content: 'Review this BOM:\\n\\n' + JSON.stringify($json.bom, null, 2)\n  }]\n}) }}",
+        "options": {}
       },
-      "name": "AI - Validate BOM",
-      "type": "n8n-nodes-base.openAi",
-      "typeVersion": 1,
+      "name": "AI - Validate BOM (Claude)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
       "position": [850, 300],
       "id": "validate-bom",
       "credentials": {
-        "openAiApi": {
+        "anthropicApi": {
           "id": "3",
-          "name": "OpenAI API"
+          "name": "Anthropic API"
         }
-      }
+      },
+      "notes": "Uses Claude 3.5 Haiku for BOM validation"
     },
     {
       "parameters": {
-        "jsCode": "// Parse AI recommendations and add to BOM\nconst aiResponse = $input.item.json.message.content;\nlet recommendations;\n\ntry {\n  const jsonMatch = aiResponse.match(/```(?:json)?\\s*([\\s\\S]*?)```/);\n  if (jsonMatch) {\n    recommendations = JSON.parse(jsonMatch[1]);\n  } else {\n    recommendations = JSON.parse(aiResponse);\n  }\n} catch (error) {\n  recommendations = {\n    notes: aiResponse\n  };\n}\n\nreturn [{\n  json: {\n    ...$input.item.json,\n    aiRecommendations: recommendations,\n    readyForProposal: true\n  }\n}];"
+        "jsCode": "// Parse Claude API response and add recommendations to BOM\nconst apiResponse = $input.item.json;\nconst aiResponse = apiResponse.content[0].text;\nlet recommendations;\n\ntry {\n  const jsonMatch = aiResponse.match(/```(?:json)?\\s*([\\s\\S]*?)```/);\n  if (jsonMatch) {\n    recommendations = JSON.parse(jsonMatch[1]);\n  } else {\n    recommendations = JSON.parse(aiResponse);\n  }\n} catch (error) {\n  recommendations = {\n    notes: aiResponse\n  };\n}\n\nreturn [{\n  json: {\n    ...$input.item.json,\n    aiRecommendations: recommendations,\n    readyForProposal: true\n  }\n}];"
       },
       "name": "Add AI Recommendations",
       "type": "n8n-nodes-base.code",

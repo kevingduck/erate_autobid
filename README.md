@@ -26,7 +26,7 @@ This system automates the entire E-rate RFP response process:
 
 - **n8n** - Workflow automation platform
 - **Docker** - Containerization
-- **OpenAI GPT-4** - PDF analysis and requirements extraction
+- **Claude 3.5 Haiku** - Fast, cost-effective PDF analysis and requirements extraction
 - **Google Docs API** - Proposal document generation
 - **IMAP/SMTP** - Email integration
 
@@ -35,7 +35,7 @@ This system automates the entire E-rate RFP response process:
 - Docker and Docker Compose installed
 - Gmail account with App Password (for email monitoring)
 - Google Cloud Project with Docs API enabled
-- OpenAI API key
+- Anthropic API key (for Claude)
 - Access to E-rate ProfitWorks emails
 
 ## Quick Start
@@ -60,7 +60,7 @@ nano .env
 
 Required configurations:
 - Email credentials (Gmail IMAP)
-- OpenAI API key
+- Anthropic API key (for Claude Haiku)
 - Google OAuth credentials
 - n8n encryption key (generate with `openssl rand -hex 32`)
 
@@ -105,9 +105,9 @@ In n8n, set up the following credentials:
 - User: Your Gmail address
 - Password: App-specific password (not your regular password)
 
-#### OpenAI
-- Type: OpenAI API
-- API Key: Your OpenAI API key
+#### Anthropic (Claude)
+- Type: Anthropic API
+- API Key: Your Anthropic API key
 
 #### Google Docs OAuth2
 - Follow Google Cloud Console setup instructions
@@ -189,7 +189,7 @@ Actions:
 ### 3. PDF Analyzer
 **Input:** Downloaded PDFs
 
-Uses OpenAI GPT-4 to:
+Uses Claude 3.5 Haiku to:
 - Extract text from PDFs
 - Identify equipment requirements
 - Parse quantities and specifications
@@ -299,7 +299,7 @@ Adjust AI prompts in workflows 3 and 4 to:
 
 ### AI Analysis Failing
 
-- Verify OpenAI API key is valid
+- Verify Anthropic API key is valid
 - Check API quota and billing
 - Ensure PDFs contain readable text (not just images)
 - Review error logs in n8n execution details
@@ -367,10 +367,10 @@ find pdfs/ -name "*.pdf" -mtime +30 -delete
 
 ## Cost Estimates
 
-### OpenAI API (GPT-4)
-- ~$0.03 per PDF analyzed
-- Daily cost: $0.03 × (number of PDFs)
-- Estimated: $1-5/day depending on volume
+### Anthropic API (Claude 3.5 Haiku)
+- ~$0.001-0.003 per PDF analyzed (much cheaper than GPT-4!)
+- Daily cost: $0.001-0.003 × (number of PDFs)
+- Estimated: $0.10-1/day depending on volume
 
 ### Google Cloud
 - Docs API: Free tier covers typical usage
@@ -380,7 +380,7 @@ find pdfs/ -name "*.pdf" -mtime +30 -delete
 - Self-hosted (Docker): Free
 - Or n8n Cloud: Starts at $20/month
 
-**Total estimated cost: $30-150/month** depending on volume and hosting choice
+**Total estimated cost: $3-30/month** depending on volume and hosting choice (10x cheaper than OpenAI!)
 
 ## Support
 

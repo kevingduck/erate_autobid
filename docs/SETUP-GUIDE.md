@@ -7,7 +7,7 @@ This guide walks you through setting up the E-rate RFP automation system step-by
 1. [Prerequisites](#prerequisites)
 2. [Gmail Setup](#gmail-setup)
 3. [Google Cloud Setup](#google-cloud-setup)
-4. [OpenAI Setup](#openai-setup)
+4. [Anthropic Setup](#anthropic-setup)
 5. [n8n Configuration](#n8n-configuration)
 6. [Workflow Import](#workflow-import)
 7. [Testing](#testing)
@@ -38,7 +38,7 @@ Download Docker Desktop from https://www.docker.com/products/docker-desktop
 
 - Gmail account (for receiving E-rate emails)
 - Google Cloud Platform account
-- OpenAI account with API access
+- Anthropic account with API access (for Claude)
 
 ## Gmail Setup
 
@@ -117,18 +117,18 @@ To ensure E-rate emails are easy to find:
 2. Save the JSON file
 3. Keep it secure - you'll use it in n8n
 
-## OpenAI Setup
+## Anthropic Setup
 
 ### 1. Create Account
 
-1. Go to https://platform.openai.com/
+1. Go to https://console.anthropic.com/
 2. Sign up or log in
 3. Add payment method (required for API access)
 
 ### 2. Generate API Key
 
-1. Go to https://platform.openai.com/api-keys
-2. Click "Create new secret key"
+1. Go to https://console.anthropic.com/settings/keys
+2. Click "Create Key"
 3. Name it "E-rate Automation"
 4. **Copy the key immediately** - you won't see it again
 5. Store it securely
@@ -136,8 +136,9 @@ To ensure E-rate emails are easy to find:
 ### 3. Set Usage Limits (Recommended)
 
 1. Go to "Settings" → "Limits"
-2. Set a monthly budget (e.g., $100)
+2. Set a monthly budget (e.g., $30)
 3. Set email notifications at 50% and 75%
+4. Note: Claude Haiku is much cheaper than GPT-4 (~$0.25 per million input tokens)
 
 ## n8n Configuration
 
@@ -184,8 +185,8 @@ GOOGLE_CLIENT_ID=your_client_id_here
 GOOGLE_CLIENT_SECRET=your_client_secret_here
 GOOGLE_REDIRECT_URI=http://localhost:5678/rest/oauth2-credential/callback
 
-# OpenAI API
-OPENAI_API_KEY=sk-your-key-here
+# Anthropic API (Claude Haiku)
+ANTHROPIC_API_KEY=sk-ant-your-key-here
 ```
 
 Generate encryption key:
@@ -240,13 +241,14 @@ For each workflow, configure the required credentials:
    - Password: Your App Password (16 characters)
 4. Click "Create"
 
-#### OpenAI Credential
+#### Anthropic Credential
 
-1. Click on "AI Analysis" node
+1. Click on "AI Analysis - Claude Haiku" node
 2. Click "Create New Credential"
-3. Select "OpenAI API"
-4. Enter your API key
-5. Click "Create"
+3. Select "Anthropic API" (or use HTTP Header Auth)
+   - Name: `x-api-key`
+   - Value: Your Anthropic API key
+4. Click "Create"
 
 #### Google Docs OAuth2 Credential
 
@@ -351,11 +353,11 @@ Successful setup shows:
 - Re-authorize the connection in n8n
 - Ensure APIs are enabled in Google Cloud Console
 
-### "Insufficient quota" - OpenAI
+### "Insufficient quota" - Anthropic
 
 **Solution:**
-- Add payment method to OpenAI account
-- Check API usage limits
+- Add payment method to Anthropic account
+- Check API usage limits (Claude Haiku is very affordable)
 - Verify API key is active
 
 ### "Cannot connect to webhook"
@@ -402,7 +404,7 @@ Before going to production:
 
 - [ ] Changed default n8n password
 - [ ] Stored `.env` file securely (not in git)
-- [ ] Limited OpenAI API usage/budget
+- [ ] Limited Anthropic API usage/budget
 - [ ] Reviewed Google Cloud quotas
 - [ ] Set up HTTPS with reverse proxy
 - [ ] Configured firewall rules

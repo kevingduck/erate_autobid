@@ -26,7 +26,7 @@ This system automates the entire E-rate RFP response process:
 
 - **n8n** - Workflow automation platform
 - **Docker** - Containerization
-- **Claude 3.5 Haiku** - Fast, cost-effective PDF analysis and requirements extraction
+- **Claude Haiku 4.5** - Latest, fast, cost-effective PDF analysis and requirements extraction
 - **Google Docs API** - Proposal document generation
 - **IMAP/SMTP** - Email integration
 
@@ -189,7 +189,7 @@ Actions:
 ### 3. PDF Analyzer
 **Input:** Downloaded PDFs
 
-Uses Claude 3.5 Haiku to:
+Uses Claude Haiku 4.5 to:
 - Extract text from PDFs
 - Identify equipment requirements
 - Parse quantities and specifications
@@ -367,7 +367,7 @@ find pdfs/ -name "*.pdf" -mtime +30 -delete
 
 ## Cost Estimates
 
-### Anthropic API (Claude 3.5 Haiku)
+### Anthropic API (Claude Haiku 4.5)
 - ~$0.001-0.003 per PDF analyzed (much cheaper than GPT-4!)
 - Daily cost: $0.001-0.003 × (number of PDFs)
 - Estimated: $0.10-1/day depending on volume

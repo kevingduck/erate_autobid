@@ -66,10 +66,10 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  model: 'claude-3-5-haiku-20241022',\n  max_tokens: 4096,\n  temperature: 0.1,\n  system: 'You are an expert at analyzing E-rate RFP and Form 470 documents. Extract all equipment requirements including switches, wireless access points, routers, controllers, and any other networking equipment. Return a structured JSON object with the following format:\\n{\\n  \"requirements\": [\\n    {\\n      \"category\": \"switches\",\\n      \"quantity\": 10,\\n      \"specifications\": \"24-port PoE+ Gigabit switches\",\\n      \"preferredManufacturer\": \"Ruckus or equivalent\",\\n      \"requiredFeatures\": [\"PoE+\", \"Layer 3\", \"10G uplinks\"]\\n    }\\n  ],\\n  \"budget\": \"$50,000\",\\n  \"deadline\": \"2025-11-15\",\\n  \"specialRequirements\": [],\\n  \"contactInfo\": {}\\n}',\n  messages: [{\n    role: 'user',\n    content: 'Analyze this E-rate document and extract all equipment requirements:\\n\\n' + $json.text\n  }]\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'claude-haiku-4-5-20250929',\n  max_tokens: 4096,\n  temperature: 0.1,\n  system: 'You are an expert at analyzing E-rate RFP and Form 470 documents. Extract all equipment requirements including switches, wireless access points, routers, controllers, and any other networking equipment. Return a structured JSON object with the following format:\\n{\\n  \"requirements\": [\\n    {\\n      \"category\": \"switches\",\\n      \"quantity\": 10,\\n      \"specifications\": \"24-port PoE+ Gigabit switches\",\\n      \"preferredManufacturer\": \"Ruckus or equivalent\",\\n      \"requiredFeatures\": [\"PoE+\", \"Layer 3\", \"10G uplinks\"]\\n    }\\n  ],\\n  \"budget\": \"$50,000\",\\n  \"deadline\": \"2025-11-15\",\\n  \"specialRequirements\": [],\\n  \"contactInfo\": {}\\n}',\n  messages: [{\n    role: 'user',\n    content: 'Analyze this E-rate document and extract all equipment requirements:\\n\\n' + $json.text\n  }]\n}) }}",
         "options": {}
       },
-      "name": "AI Analysis - Claude Haiku",
+      "name": "AI Analysis - Claude Haiku 4.5",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [1050, 300],
@@ -80,7 +80,7 @@
           "name": "Anthropic API"
         }
       },
-      "notes": "Uses Claude 3.5 Haiku - fast and cost-effective"
+      "notes": "Uses Claude Haiku 4.5 - latest, fast and cost-effective"
     },
     {
       "parameters": {

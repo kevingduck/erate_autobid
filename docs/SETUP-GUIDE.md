@@ -138,7 +138,7 @@ To ensure E-rate emails are easy to find:
 1. Go to "Settings" → "Limits"
 2. Set a monthly budget (e.g., $30)
 3. Set email notifications at 50% and 75%
-4. Note: Claude Haiku is much cheaper than GPT-4 (~$0.25 per million input tokens)
+4. Note: Claude Haiku 4.5 is much cheaper than GPT-4 (~$0.25 per million input tokens)
 
 ## n8n Configuration
 
@@ -243,7 +243,7 @@ For each workflow, configure the required credentials:
 
 #### Anthropic Credential
 
-1. Click on "AI Analysis - Claude Haiku" node
+1. Click on "AI Analysis - Claude Haiku 4.5" node
 2. Click "Create New Credential"
 3. Select "Anthropic API" (or use HTTP Header Auth)
    - Name: `x-api-key`

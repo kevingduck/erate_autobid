@@ -53,10 +53,10 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({\n  model: 'claude-3-5-haiku-20241022',\n  max_tokens: 4096,\n  temperature: 0.3,\n  system: 'You are a network equipment expert. Review this bill of materials and provide:\\n1. Equivalency recommendations\\n2. Missing items that might be needed (cables, licenses, installation)\\n3. Compatibility notes\\n4. Cost optimization suggestions\\n\\nReturn structured JSON with your analysis.',\n  messages: [{\n    role: 'user',\n    content: 'Review this BOM:\\n\\n' + JSON.stringify($json.bom, null, 2)\n  }]\n}) }}",
+        "jsonBody": "={{ JSON.stringify({\n  model: 'claude-haiku-4-5-20250929',\n  max_tokens: 4096,\n  temperature: 0.3,\n  system: 'You are a network equipment expert. Review this bill of materials and provide:\\n1. Equivalency recommendations\\n2. Missing items that might be needed (cables, licenses, installation)\\n3. Compatibility notes\\n4. Cost optimization suggestions\\n\\nReturn structured JSON with your analysis.',\n  messages: [{\n    role: 'user',\n    content: 'Review this BOM:\\n\\n' + JSON.stringify($json.bom, null, 2)\n  }]\n}) }}",
         "options": {}
       },
-      "name": "AI - Validate BOM (Claude)",
+      "name": "AI - Validate BOM (Haiku 4.5)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [850, 300],
@@ -67,7 +67,7 @@
           "name": "Anthropic API"
         }
       },
-      "notes": "Uses Claude 3.5 Haiku for BOM validation"
+      "notes": "Uses Claude Haiku 4.5 for BOM validation"
     },
     {
       "parameters": {
